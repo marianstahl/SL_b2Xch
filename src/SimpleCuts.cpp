@@ -41,32 +41,16 @@ using namespace RooFit;
 
 TString temp;
 
-struct cH_cand{
-  float mass;
-  float ip;
-};
-
 struct cH_mult_cand{
-  float mass;
+  double mass;
   float ip;
   int index;
 };
 
-/*template <class T>
-bool compareByip(const T *a, const T *b)
-{
-  return a.ip < b.ip;
-}*/
 bool compareByIP(const cH_mult_cand &a, const cH_mult_cand &b)
 {
   return a.ip < b.ip;
 }
-bool compareByip(const cH_cand &a, const cH_cand &b)
-{
-  return a.ip < b.ip;
-}
-
-int n_profilebins = 10;
 
 template <class cH> void fill_profile(vector<cH> multiple_cH_candidate, TProfile *Xc_IP);
 void SimpleCuts();
@@ -90,43 +74,60 @@ void SimpleCuts(){
   TStopwatch *clock = new TStopwatch();
   clock->Start(1);
 
-  bool Xic_sel = false;
-  bool Xic0_sel = true;
-  bool Omegac_sel = false;
+  bool Xic_sel = true;
+  bool Xic0_sel = false;
+  bool Omegac_sel = true;
+  bool make_IP_profile_plots = false;
+  bool clean_vertex = true;
+  bool purge_vertex = true;
+
+  const double xicmass = 2469.26; //MeV --> measured by fit
+  const double xic0mass = 2472.18; //MeV --> measured by fit
 
   MyStyle();
 
   configuration* myconfig = new configuration();
   myconfig->set_version(1);
   myconfig->fill_cs("Basic selection");
-  myconfig->set_current_cs("XcHPTCut");
+  myconfig->set_current_cs("NoXbCut");
+
+  TH1D::AddDirectory(0);
+  TProfile::AddDirectory(0);
+  TH2D::AddDirectory(0);
 
   TH1D *Xic_hist = new TH1D("Xic",";;",myconfig->get_NBinsForFit(),myconfig->get_XcMlo(),myconfig->get_XcMhi());
   TH2D *Xic_beta_hist = new TH2D("Xic_beta",";#beta_{p};M_{inv}(pK#pi) (GeV)",150,-0.75,0.75,2*myconfig->get_NBinsForFit(),myconfig->get_XcMlo(),myconfig->get_XcMhi());
   TH2D *Xic_beta_cut_hist = new TH2D("Xic_beta_cut",";#beta_{p};M_{inv}(pK#pi) (GeV)",150,-0.75,0.75,2*myconfig->get_NBinsForFit(),myconfig->get_XcMlo(),myconfig->get_XcMhi());
   TH2D *Xic_2D_dump = new TH2D("Xic_p_CosTheta",";M_{inv}(pK#pi) (GeV);#Theta^{CM}_{p}",2*myconfig->get_NBinsForFit(),myconfig->get_XcMlo(),myconfig->get_XcMhi(),100,-1,1);
 
-  TH1D *Xib0_hist = new TH1D("Xib0",";M_{corr}(#Xi^{+}_{c}#mu^{-} + c.c.) (GeV);Events/50 MeV",110,1700,7200);
-  TH1D *Xib_hist = new TH1D("Xib",";M_{corr}(#Xi^{0}_{c}#mu^{-} + c.c.) (GeV);Events/50 MeV",100,2200,7200);
-  TH1D *Omegab_hist = new TH1D("Omegab",";M_{corr}(#Omega^{0}_{c}#mu^{-} + c.c.) (GeV);Events/50 MeV",100,2200,7200);
+  int n_CorrM_bins = 84;
+  double CorrM_lo = 3000, CorrM_hi = 7200;
+  TH1D *Xib0_hist = new TH1D("Xib0",";M_{corr}(#Xi^{+}_{c}#mu^{-} + c.c.) (GeV);Events/50 MeV",n_CorrM_bins,CorrM_lo,CorrM_hi);
+  TH1D *Xib_hist = new TH1D("Xib",";M_{corr}(#Xi^{0}_{c}#mu^{-} + c.c.) (GeV);Events/50 MeV",n_CorrM_bins,CorrM_lo,CorrM_hi);
+  TH1D *Omegab_hist = new TH1D("Omegab",";M_{corr}(#Omega^{0}_{c}#mu^{-} + c.c.) (GeV);Events/50 MeV",n_CorrM_bins,CorrM_lo,CorrM_hi);
+  TH1D *Xib0_SB_hist = new TH1D("Xib0_SB",";M_{corr}(#Xi^{+}_{c}#mu^{-} + c.c.) (GeV);Events/50 MeV",n_CorrM_bins,CorrM_lo,CorrM_hi);
+  TH1D *Xib_SB_hist = new TH1D("Xib_SB",";M_{corr}(#Xi^{0}_{c}#mu^{-} + c.c.) (GeV);Events/50 MeV",n_CorrM_bins,CorrM_lo,CorrM_hi);
+  TH1D *Omegab_SB_hist = new TH1D("Omegab_SB",";M_{corr}(#Omega^{0}_{c}#mu^{-} + c.c.) (GeV);Events/50 MeV",n_CorrM_bins,CorrM_lo,CorrM_hi);
 
-  TProfile *Xic_IP = new TProfile("Xic_IP",";IP (mm);<nTracks>",n_profilebins,0,10," ");
-  TProfile *Xic0_IP = new TProfile("Xic0_IP",";IP (mm);<nTracks>",n_profilebins,0,10," ");
-  TProfile *Omegac_IP = new TProfile("Omegac_IP",";IP (mm);<nTracks>",n_profilebins,0,10," ");
+  int n_profilebins = 20;
+  TProfile *Xic_IP = new TProfile("Xic_IP",";IP (mm);<nTracks>",n_profilebins,0,1," ");
+  TProfile *Xic0_IP = new TProfile("Xic0_IP",";IP (mm);<nTracks>",n_profilebins,0,1," ");
+  TProfile *Omegac_IP = new TProfile("Omegac_IP",";IP (mm);<nTracks>",n_profilebins,0,1," ");
 
-  double Xicpilo = 2600, Xicpihi = 4000; int nbinsXicpi = 140;
-  double XicKlo = 2960, XicKhi = 3960; int nbinsXicK = 100;
+  double Xicpilo = 2600, Xicpihi = 3800; int nbinsXicpi = 200;
+  double XicKlo = 2960, XicKhi = 3560; int nbinsXicK = 150;
 
-  TH1D *XicpiSS_hist = new TH1D("XicpiSS_hist",";M_{inv}(#Xi^{#pm}_{c}#pi)-M_{inv}(pK#pi)+M_{PDG}(#Xi^{#pm}_{c}) (GeV); Events/10 MeV",nbinsXicpi,Xicpilo,Xicpihi);
-  TH1D *XicpiOS_hist = new TH1D("Xicpi_hist",";M_{inv}(#Xi^{#pm}_{c}#pi)-M_{inv}(pK#pi)+M_{PDG}(#Xi^{#pm}_{c}) (GeV); Events/10 MeV",nbinsXicpi,Xicpilo,Xicpihi);
-  TH1D *XicKSS_hist = new TH1D("XicKSS_hist",";M_{inv}(#Xi^{#pm}_{c}K)-M_{inv}(pK#pi)+M_{PDG}(#Xi^{#pm}_{c}) (GeV); Events/10 MeV",nbinsXicK,XicKlo,XicKhi);
-  TH1D *XicKOS_hist = new TH1D("XicK_hist",";M_{inv}(#Xi^{#pm}_{c}K)-M_{inv}(pK#pi)+M_{PDG}(#Xi^{#pm}_{c}) (GeV); Events/10 MeV",nbinsXicK,XicKlo,XicKhi);
+  temp.Form(";M_{inv}(#Xi^{#pm}_{c}#pi)-M_{inv}(pK#pi)+M_{PDG}(#Xi^{#pm}_{c}) (GeV); Events/%g MeV",(Xicpihi-Xicpilo)/nbinsXicpi);
+  TH1D *XicpiSS_hist = new TH1D("XicpiSS_hist",temp,nbinsXicpi,Xicpilo,Xicpihi);
+  TH1D *XicpiOS_hist = new TH1D("Xicpi_hist",temp,nbinsXicpi,Xicpilo,Xicpihi);
+  TH1D *XicpiSS_IPfail = new TH1D("XicpiSS_IPfail",temp,nbinsXicpi,Xicpilo,Xicpihi);
+  TH1D *XicpiOS_IPfail = new TH1D("Xicpi_IPfail",temp,nbinsXicpi,Xicpilo,Xicpihi);
+  temp.Form(";M_{inv}(#Xi^{#pm}_{c}K)-M_{inv}(pK#pi)+M_{PDG}(#Xi^{#pm}_{c}) (GeV); Events/%g MeV",(XicKhi-XicKlo)/nbinsXicK);
+  TH1D *XicKSS_hist = new TH1D("XicKSS_hist",temp,nbinsXicK,XicKlo,XicKhi);
+  TH1D *XicKOS_hist = new TH1D("XicK_hist",temp,nbinsXicK,XicKlo,XicKhi);
+  TH1D *XicKSS_IPfail = new TH1D("XicKSS_IPfail",temp,nbinsXicK,XicKlo,XicKhi);
+  TH1D *XicKOS_IPfail = new TH1D("XicK_IPfail",temp,nbinsXicK,XicKlo,XicKhi);
   vector<TH1D*> Xic_hists;Xic_hists.push_back(XicpiSS_hist);Xic_hists.push_back(XicpiOS_hist);Xic_hists.push_back(XicKSS_hist);Xic_hists.push_back(XicKOS_hist);
-
-  TH1D *XicpiSS_IPfail = new TH1D("XicpiSS_IPfail",";M_{inv}(#Xi^{#pm}_{c}#pi)-M_{inv}(pK#pi)+M_{PDG}(#Xi^{#pm}_{c}) (GeV); Events/10 MeV",nbinsXicpi,Xicpilo,Xicpihi);
-  TH1D *XicpiOS_IPfail = new TH1D("Xicpi_IPfail",";M_{inv}(#Xi^{#pm}_{c}#pi)-M_{inv}(pK#pi)+M_{PDG}(#Xi^{#pm}_{c}) (GeV); Events/10 MeV",nbinsXicpi,Xicpilo,Xicpihi);
-  TH1D *XicKSS_IPfail = new TH1D("XicKSS_IPfail",";M_{inv}(#Xi^{#pm}_{c}K)-M_{inv}(pK#pi)+M_{PDG}(#Xi^{#pm}_{c}) (GeV); Events/10 MeV",nbinsXicK,XicKlo,XicKhi);
-  TH1D *XicKOS_IPfail = new TH1D("XicK_IPfail",";M_{inv}(#Xi^{#pm}_{c}K)-M_{inv}(pK#pi)+M_{PDG}(#Xi^{#pm}_{c}) (GeV); Events/10 MeV",nbinsXicK,XicKlo,XicKhi);
   vector<TH1D*> Xic_IPfails;Xic_IPfails.push_back(XicpiSS_IPfail);Xic_IPfails.push_back(XicpiOS_IPfail);Xic_IPfails.push_back(XicKSS_IPfail);Xic_IPfails.push_back(XicKOS_IPfail);
 
   myconfig->set_particle("Xic0");
@@ -135,20 +136,21 @@ void SimpleCuts(){
   TH2D *Xic0_beta_cut_hist = new TH2D("Xic0_beta_cut",";#beta_{p};M_{inv}(pK#pi) (GeV)",150,-0.75,0.75,2*myconfig->get_NBinsForFit(),myconfig->get_XcMlo(),myconfig->get_XcMhi());
   TH2D *Xic0_2D_dump = new TH2D("Xic0_p_CosTheta",";M_{inv}(pK#pi) (GeV);#Theta^{CM}_{p}",2*myconfig->get_NBinsForFit(),myconfig->get_XcMlo(),myconfig->get_XcMhi(),100,-1,1);
 
-  TH1D *Xic0piSS_hist = new TH1D("Xic0piSS_hist",";M_{inv}(#Xi^{0}_{c}#pi)-M_{inv}(pKK#pi)+M_{PDG}(#Xi^{0}_{c}) (GeV); Events/10 MeV",nbinsXicpi,Xicpilo,Xicpihi);
-  TH1D *Xic0piOS_hist = new TH1D("Xic0pi_hist",";M_{inv}(#Xi^{0}_{c}#pi)-M_{inv}(pKK#pi)+M_{PDG}(#Xi^{0}_{c}) (GeV); Events/10 MeV",nbinsXicpi,Xicpilo,Xicpihi);
-  TH1D *Xic0KSS_hist = new TH1D("Xic0KSS_hist",";M_{inv}(#Xi^{0}_{c}K)-M_{inv}(pKK#pi)+M_{PDG}(#Xi^{0}_{c}) (GeV); Events/10 MeV",nbinsXicK,XicKlo,XicKhi);
-  TH1D *Xic0KOS_hist = new TH1D("Xic0K_hist",";M_{inv}(#Xi^{0}_{c}K)-M_{inv}(pKK#pi)+M_{PDG}(#Xi^{0}_{c}) (GeV); Events/10 MeV",nbinsXicK,XicKlo,XicKhi);
+  temp.Form(";M_{inv}(#Xi^{0}_{c}#pi)-M_{inv}(pKK#pi)+M_{PDG}(#Xi^{0}_{c}) (GeV); Events/%g MeV",(Xicpihi-Xicpilo)/nbinsXicpi);
+  TH1D *Xic0piSS_hist = new TH1D("Xic0piSS_hist",temp,nbinsXicpi,Xicpilo,Xicpihi);
+  TH1D *Xic0piOS_hist = new TH1D("Xic0pi_hist",temp,nbinsXicpi,Xicpilo,Xicpihi);
+  TH1D *Xic0piSS_IPfail = new TH1D("Xic0piSS_IPfail",temp,nbinsXicpi,Xicpilo,Xicpihi);
+  TH1D *Xic0piOS_IPfail = new TH1D("Xic0pi_IPfail",temp,nbinsXicpi,Xicpilo,Xicpihi);
+  temp.Form(";M_{inv}(#Xi^{0}_{c}K)-M_{inv}(pKK#pi)+M_{PDG}(#Xi^{0}_{c}) (GeV); Events/%g MeV",(XicKhi-XicKlo)/nbinsXicK);
+  TH1D *Xic0KSS_hist = new TH1D("Xic0KSS_hist",temp,nbinsXicK,XicKlo,XicKhi);
+  TH1D *Xic0KOS_hist = new TH1D("Xic0K_hist",temp,nbinsXicK,XicKlo,XicKhi);
+  TH1D *Xic0KSS_IPfail = new TH1D("Xic0KSS_IPfail",temp,nbinsXicK,XicKlo,XicKhi);
+  TH1D *Xic0KOS_IPfail = new TH1D("Xic0K_IPfail",temp,nbinsXicK,XicKlo,XicKhi);
   vector<TH1D*> Xic0_hists;Xic0_hists.push_back(Xic0piSS_hist);Xic0_hists.push_back(Xic0piOS_hist);Xic0_hists.push_back(Xic0KSS_hist);Xic0_hists.push_back(Xic0KOS_hist);
+  vector<TH1D*> Xic0_IPfails;Xic0_IPfails.push_back(Xic0piSS_IPfail);Xic0_IPfails.push_back(Xic0piOS_IPfail);Xic0_IPfails.push_back(Xic0KSS_IPfail);Xic0_IPfails.push_back(Xic0KOS_IPfail);
   TH1D *Xic0pipiSS_hist = new TH1D("Xic0pipiSS_hist",";M_{inv}(#Xi^{0}_{c}#pi#pi)-M_{inv}(pKK#pi)+M_{PDG}(#Xi^{0}_{c}) (GeV); Events/10 MeV",nbinsXicpi,Xicpilo,Xicpihi);
   TH1D *Xic0pipiOS_hist = new TH1D("Xic0pipi_hist",";M_{inv}(#Xi^{0}_{c}#pi#pi)-M_{inv}(pKK#pi)+M_{PDG}(#Xi^{0}_{c}) (GeV); Events/10 MeV",nbinsXicpi,Xicpilo,Xicpihi);
   vector<TH1D*> Xic0pipi_hists;Xic0pipi_hists.push_back(Xic0pipiSS_hist);Xic0pipi_hists.push_back(Xic0pipiOS_hist);
-
-  TH1D *Xic0piSS_IPfail = new TH1D("Xic0piSS_IPfail",";M_{inv}(#Xi^{0}_{c}#pi)-M_{inv}(pKK#pi)+M_{PDG}(#Xi^{0}_{c}) (GeV); Events/10 MeV",nbinsXicpi,Xicpilo,Xicpihi);
-  TH1D *Xic0piOS_IPfail = new TH1D("Xic0pi_IPfail",";M_{inv}(#Xi^{0}_{c}#pi)-M_{inv}(pKK#pi)+M_{PDG}(#Xi^{0}_{c}) (GeV); Events/10 MeV",nbinsXicpi,Xicpilo,Xicpihi);
-  TH1D *Xic0KSS_IPfail = new TH1D("Xic0KSS_IPfail",";M_{inv}(#Xi^{0}_{c}K)-M_{inv}(pKK#pi)+M_{PDG}(#Xi^{0}_{c}) (GeV); Events/10 MeV",nbinsXicK,XicKlo,XicKhi);
-  TH1D *Xic0KOS_IPfail = new TH1D("Xic0K_IPfail",";M_{inv}(#Xi^{0}_{c}K)-M_{inv}(pKK#pi)+M_{PDG}(#Xi^{0}_{c}) (GeV); Events/10 MeV",nbinsXicK,XicKlo,XicKhi);
-  vector<TH1D*> Xic0_IPfails;Xic0_IPfails.push_back(Xic0piSS_IPfail);Xic0_IPfails.push_back(Xic0piOS_IPfail);Xic0_IPfails.push_back(Xic0KSS_IPfail);Xic0_IPfails.push_back(Xic0KOS_IPfail);
 
   myconfig->set_particle("Omegac");
   TH1D *Omegac_hist = new TH1D("Omegac",";;",myconfig->get_NBinsForFit(),myconfig->get_XcMlo(),myconfig->get_XcMhi());
@@ -258,9 +260,10 @@ void SimpleCuts(){
       bool vetos = !(1860 < MisID_D2piKpi_M && MisID_D2piKpi_M < 1880) && !(2005 < MisID_D2piKpi_M && MisID_D2piKpi_M < 2025) && !(1860 < MisID_Ds2KKpi_M && MisID_Ds2KKpi_M < 1880) && !(1955 < MisID_Ds2KKpi_M && MisID_Ds2KKpi_M < 1985);
       bool PID_cuts = p_ProbNNp > 0.28 && K_ProbNNk > 0.15 && pi_ProbNNpi > 0.2;
       bool Dalitz_region = (842 < sqrt(KStar_M2) && sqrt(KStar_M2) < 942) || (1505 < sqrt(Lambda1520_M2) && sqrt(Lambda1520_M2) < 1535);
-      bool CorrM_cut = 4500 < Xb_M && Xb_M < 7200;
+      bool CorrM_cut = true;//4500 < Xb_M && Xb_M < 7200;
       bool basic_selection = vetos && PID_cuts && Dalitz_region && p_CosTheta > -0.9;
-      bool Xic_M_cut = 2460 < Xc_M && Xc_M < 2485;
+      //bool Xic_M_cut = 2460 < Xc_M && Xc_M < 2485;
+      bool Xic_M_cut = fabs(Xc_M - xicmass) < 16.5;//6.6 MeV with * 2.5 = 16.5
 
       Xic_beta_hist->Fill(p_beta,Xc_M);
       if(basic_selection){
@@ -270,16 +273,17 @@ void SimpleCuts(){
           Xic_2D_dump->Fill(Xc_M,p_CosTheta);
         }// p_CosTheta > -0.7 ?
         if(Xic_M_cut)Xib0_hist->Fill(Xb_M);
+        else Xib0_SB_hist->Fill(Xb_M);
       }
       bool gs_selection = basic_selection && CorrM_cut && Xic_M_cut;
 
       if(!gs_selection)continue;
 
-      vector<cH_cand> multiple_cpi_SS;
-      vector<cH_cand> multiple_cpi_OS;
-      vector<cH_cand> multiple_cK_SS;
-      vector<cH_cand> multiple_cK_OS;
-      vector < vector<cH_cand> > multiples;
+      vector<cH_mult_cand> multiple_cpi_SS;
+      vector<cH_mult_cand> multiple_cpi_OS;
+      vector<cH_mult_cand> multiple_cK_SS;
+      vector<cH_mult_cand> multiple_cK_OS;
+      vector < vector<cH_mult_cand> > multiples;
       for(int ap = 0; ap < Added_n_Particles; ap++){
         bool OS = ((Added_H_PROBNNPID[ap] < 0 && Xc_ID > 0) || (Added_H_PROBNNPID[ap] > 0 && Xc_ID < 0));
         bool added_H_cuts = Added_H_PT[ap] > 150 && Added_CharmH_VERTEXCHI2_NEW[ap] < 4 &&  Added_CharmH_PT[ap] > 2000;
@@ -289,10 +293,10 @@ void SimpleCuts(){
         bool piOS_selection =  OS && added_H_cuts && added_pi_cuts;
         bool KSS_selection  = !OS && added_H_cuts && added_K_cuts;
         bool KOS_selection  =  OS && added_H_cuts && added_K_cuts;
-        if(piSS_selection)multiple_cpi_SS.emplace_back(cH_cand{Added_CharmH_M[ap]-Xc_M+2467.8,Added_CharmH_IP_NEW[ap]});
-        if(piOS_selection)multiple_cpi_OS.emplace_back(cH_cand{Added_CharmH_M[ap]-Xc_M+2467.8,Added_CharmH_IP_NEW[ap]});
-        if(KSS_selection)multiple_cK_SS.emplace_back(cH_cand{Added_CharmH_M_kaon[ap]-Xc_M+2467.8,Added_CharmH_IP_NEW[ap]});
-        if(KOS_selection)multiple_cK_OS.emplace_back(cH_cand{Added_CharmH_M_kaon[ap]-Xc_M+2467.8,Added_CharmH_IP_NEW[ap]});
+        if(piSS_selection)multiple_cpi_SS.emplace_back(cH_mult_cand{Added_CharmH_M[ap]-Xc_M+2467.8,Added_CharmH_IP_NEW[ap]});
+        if(piOS_selection)multiple_cpi_OS.emplace_back(cH_mult_cand{Added_CharmH_M[ap]-Xc_M+2467.8,Added_CharmH_IP_NEW[ap]});
+        if(KSS_selection)multiple_cK_SS.emplace_back(cH_mult_cand{Added_CharmH_M_kaon[ap]-Xc_M+2467.8,Added_CharmH_IP_NEW[ap]});
+        if(KOS_selection)multiple_cK_OS.emplace_back(cH_mult_cand{Added_CharmH_M_kaon[ap]-Xc_M+2467.8,Added_CharmH_IP_NEW[ap]});
       }
       multiples.push_back(multiple_cpi_SS);
       multiples.push_back(multiple_cpi_OS);
@@ -302,22 +306,41 @@ void SimpleCuts(){
       for(unsigned int i = 0; i < multiples.size(); i++){
         if(multiples.at(i).size() > 1){
           if(myconfig->get_verbosity() > normal)cout << "we have a multiple candidate" << endl;
-          sort(multiples.at(i).begin(), multiples.at(i).end(), compareByip);
-          fill_profile(multiples.at(i),Xic_IP);
+          sort(multiples.at(i).begin(), multiples.at(i).end(), compareByIP);
+          if(i == 1 && make_IP_profile_plots)fill_profile(multiples.at(i),Xic_IP);
           for(unsigned int j = 0; j < multiples.at(i).size(); j++){
             if(myconfig->get_verbosity() > normal)cout << "IP of sorted candidate # " << j << ": " << multiples.at(i).at(j).ip << endl;
           }
         }
-        if(!multiples.at(i).empty())Xic_hists.at(i)->Fill(multiples.at(i).at(0).mass);
-        if(multiples.at(i).size() > 1){
-          for(unsigned int j = 1; j < multiples.at(i).size(); j++){
-            Xic_IPfails.at(i)->Fill(multiples.at(i).at(j).mass);
+        if(clean_vertex){
+          if(multiples.at(i).size() > 1){
+            int good_IP_particles = 1;
+            int ih1 = 0, ih2 = 0;
+            for(unsigned int j = 1; j < multiples.at(i).size(); j++){
+              //eliminate Xc*->Xc+nH (where n > 1)
+              //Assuming that if n candidates have similar IP, they come from the same vertex
+              if(multiples.at(i).at(1).ip/multiples.at(i).at(0).ip < 1.25){
+                good_IP_particles++;
+                ih1 = multiples.at(i).at(0).index; ih2 = multiples.at(i).at(1).index;
+                multiples.at(i).erase(multiples.at(i).begin());//it will always be the first element I hope ?!
+                if(purge_vertex)multiples.at(i).clear();
+              }
+            }
+          }
+          if(!multiples.at(i).empty())Xic_hists.at(i)->Fill(multiples.at(i).at(0).mass);
+        }
+        else{
+          if(!multiples.at(i).empty())Xic_hists.at(i)->Fill(multiples.at(i).at(0).mass);
+          if(multiples.at(i).size() > 1){
+            for(unsigned int j = 1; j < multiples.at(i).size(); j++){
+              Xic_IPfails.at(i)->Fill(multiples.at(i).at(j).mass);
+            }
           }
         }
       }
     }
-    make_1D_Plot(Xib0_hist,myconfig);
-    make_1D_Plot(Xic_IP,myconfig);
+    make_overlay_Plot(Xib0_SB_hist,Xib0_hist,myconfig);
+    if(make_IP_profile_plots)make_1D_Plot(Xic_IP,myconfig);
     make_2D_Plot(Xic_beta_hist,myconfig);
     make_2D_Plot(Xic_beta_cut_hist,myconfig);
     make_2D_Plot(Xic_2D_dump,myconfig);
@@ -397,8 +420,9 @@ void SimpleCuts(){
 
       bool vetos = !(1855 < MisID_D02KKKpi_M && MisID_D02KKKpi_M < 1875);
       bool PID_cuts = p_ProbNNp > 0.1 && K_ProbNNk > 0.25 && K2_ProbNNk > 0.25 && pi_ProbNNpi > 0.05;
-      bool CorrM_cut = 4500 < Xb_M && Xb_M < 7200;
-      bool Xic0_M_cut = 2460 < Xc_M && Xc_M < 2485;
+      bool CorrM_cut = true;//4500 < Xb_M && Xb_M < 7200;
+      //bool Xic0_M_cut = 2460 < Xc_M && Xc_M < 2485;
+      bool Xic0_M_cut = fabs(Xc_M - xic0mass) < 10.75;//6.6 MeV with * 2.5 = 16.5
 
       bool basic_selection = vetos && PID_cuts;
       Xic0_beta_hist->Fill(p_beta,Xc_M);
@@ -409,6 +433,7 @@ void SimpleCuts(){
           Xic0_2D_dump->Fill(Xc_M,p_CosTheta);// p_CosTheta > -0.7 ?
         }
         if(Xic0_M_cut)Xib_hist->Fill(Xb_M);
+        else Xib_SB_hist->Fill(Xb_M);
       }
       bool gs_selection = basic_selection && CorrM_cut && Xic0_M_cut;
       if(!gs_selection)continue;
@@ -442,42 +467,53 @@ void SimpleCuts(){
         if(multiples.at(i).size() > 1){
           if(myconfig->get_verbosity() > normal)cout << "we have a multiple candidate" << endl;
           sort(multiples.at(i).begin(), multiples.at(i).end(), compareByIP);
-          fill_profile(multiples.at(i),Xic0_IP);
+          if(i == 0 && make_IP_profile_plots)fill_profile(multiples.at(i),Xic0_IP);
           for(unsigned int j = 0; j < multiples.at(i).size(); j++){
             if(myconfig->get_verbosity() > normal)cout << "IP of sorted candidate # " << j << ": " << multiples.at(i).at(j).ip << endl;
           }
         }
-        if(multiples.at(i).size() > 1){
-          int good_IP_particles = 1;
-          int ih1 = 0, ih2 = 0;
-          for(unsigned int j = 1; j < multiples.at(i).size(); j++){
-            //eliminate Xc*->Xc+nH (where n > 1)
-            //Assuming that if n candidates have similar IP, they come from the same vertex
-            if(multiples.at(i).at(1).ip/multiples.at(i).at(0).ip < 1.25){
-              good_IP_particles++;
-              ih1 = multiples.at(i).at(0).index; ih2 = multiples.at(i).at(1).index;
-              multiples.at(i).erase(multiples.at(i).begin());//it will always be the first element I hope ?!
+        if(clean_vertex){
+          if(multiples.at(i).size() > 1){
+            int good_IP_particles = 1;
+            int ih1 = 0, ih2 = 0;
+            for(unsigned int j = 1; j < multiples.at(i).size(); j++){
+              //eliminate Xc*->Xc+nH (where n > 1)
+              //Assuming that if n candidates have similar IP, they come from the same vertex
+              if(multiples.at(i).at(1).ip/multiples.at(i).at(0).ip < 1.25){
+                good_IP_particles++;
+                ih1 = multiples.at(i).at(0).index; ih2 = multiples.at(i).at(1).index;
+                multiples.at(i).erase(multiples.at(i).begin());//it will always be the first element I hope ?!
+                if(purge_vertex)multiples.at(i).clear();
+              }
+            }
+            if(good_IP_particles == 2){
+              TLorentzVector Xic_lv, h1_lv, h2_lv;
+              Xic_lv.SetPtEtaPhiM(Xc_PT,Xc_ETA,Xc_PHI,2470.9);
+              h1_lv.SetPtEtaPhiM(Added_H_PT[ih1],Added_H_ETA[ih1],Added_H_PHI[ih1],139.57);
+              h2_lv.SetPtEtaPhiM(Added_H_PT[ih2],Added_H_ETA[ih2],Added_H_PHI[ih2],139.57);
+              double Xicpipi_M = (Xic_lv + h1_lv + h2_lv).M();
+              if(i < 2)Xic0pipi_hists.at(i)->Fill(Xicpipi_M);
+            }
+            else{
+              for(unsigned int j = 1; j < multiples.at(i).size(); j++){
+                Xic0_IPfails.at(i)->Fill(multiples.at(i).at(j).mass);
+              }
             }
           }
-          if(good_IP_particles == 2){
-            TLorentzVector Xic_lv, h1_lv, h2_lv;
-            Xic_lv.SetPtEtaPhiM(Xc_PT,Xc_ETA,Xc_PHI,2470.9);
-            h1_lv.SetPtEtaPhiM(Added_H_PT[ih1],Added_H_ETA[ih1],Added_H_PHI[ih1],139.57);
-            h2_lv.SetPtEtaPhiM(Added_H_PT[ih2],Added_H_ETA[ih2],Added_H_PHI[ih2],139.57);
-            double Xicpipi_M = (Xic_lv + h1_lv + h2_lv).M();
-            if(i < 2)Xic0pipi_hists.at(i)->Fill(Xicpipi_M);
-          }
-          else{
+          if(!multiples.at(i).empty())Xic0_hists.at(i)->Fill(multiples.at(i).at(0).mass);
+        }
+        else{
+          if(!multiples.at(i).empty())Xic0_hists.at(i)->Fill(multiples.at(i).at(0).mass);
+          if(multiples.at(i).size() > 1){
             for(unsigned int j = 1; j < multiples.at(i).size(); j++){
               Xic0_IPfails.at(i)->Fill(multiples.at(i).at(j).mass);
             }
           }
         }
-        if(!multiples.at(i).empty())Xic0_hists.at(i)->Fill(multiples.at(i).at(0).mass);
       }
     }
-    make_1D_Plot(Xib_hist,myconfig);
-    make_1D_Plot(Xic0_IP,myconfig);
+    make_overlay_Plot(Xib_SB_hist,Xib_hist,myconfig);
+    if(make_IP_profile_plots)make_1D_Plot(Xic0_IP,myconfig);
     make_2D_Plot(Xic0_beta_hist,myconfig);
     make_2D_Plot(Xic0_beta_cut_hist,myconfig);
     make_2D_Plot(Xic0_2D_dump,myconfig);
@@ -546,8 +582,9 @@ void SimpleCuts(){
 
       //p_ProbNNp > 0.3 && pi_ProbNNpi > 0.0 && SSK1_ProbNNk > 0.4 && SSK2_ProbNNk > 0.4 && MyFriend.Omegab_CorrM > 5500 && MyFriend.Omegab_CorrM < 6800 && Omegac_M > 2685 && Omegac_M < 2710 && Added_H_ProbNNpi > 0.4 && Added_H_PT > 200 && ((Added_H_PROBNNPID > 0 && Omegac_ID < 0) || (Added_H_PROBNNPID < 0 && Omegac_ID > 0)) && TMath::Abs(Added_H_PROBNNPID) == 221 && Added_CharmH_VERTEXCHI2_NEW < 3
 
+
       bool PID_cuts = p_ProbNNp > 0.3 && K_ProbNNk > 0.4 && K2_ProbNNk > 0.4 && pi_ProbNNpi > 0.00;
-      bool CorrM_cut = 5500 < Xb_M && Xb_M < 7200;
+      bool CorrM_cut = true;//5500 < Xb_M && Xb_M < 7200;
       bool Omegac_M_cut = 2685 < Xc_M && Xc_M < 2710;
       Omegac_beta_hist->Fill(p_beta,Xc_M);
       if(PID_cuts){
@@ -557,28 +594,29 @@ void SimpleCuts(){
           Omegac_2D_dump->Fill(Xc_M,p_CosTheta);// p_CosTheta > -0.7 ?
         }
         if(Omegac_M_cut)Omegab_hist->Fill(Xb_M);
+        else Omegab_SB_hist->Fill(Xb_M);
       }
       bool gs_selection = PID_cuts && CorrM_cut && Omegac_M_cut;
       if(!gs_selection)continue;
 
-      vector<cH_cand> multiple_cpi_SS;
-      vector<cH_cand> multiple_cpi_OS;
-      vector<cH_cand> multiple_cK_SS;
-      vector<cH_cand> multiple_cK_OS;
-      vector < vector<cH_cand> > multiples;
+      vector<cH_mult_cand> multiple_cpi_SS;
+      vector<cH_mult_cand> multiple_cpi_OS;
+      vector<cH_mult_cand> multiple_cK_SS;
+      vector<cH_mult_cand> multiple_cK_OS;
+      vector < vector<cH_mult_cand> > multiples;
       for(int ap = 0; ap < Added_n_Particles; ap++){
         bool OS = ((Added_H_PROBNNPID[ap] < 0 && Xc_ID > 0) || (Added_H_PROBNNPID[ap] > 0 && Xc_ID < 0));
         bool added_H_cuts = Added_H_PT[ap] > 150 && Added_CharmH_VERTEXCHI2_NEW[ap] < 4 && Added_CharmH_PT[ap] > 2000;
         bool added_K_cuts = Added_H_ProbNNk[ap] > 0.25 && Added_CharmH_M_kaon[ap] < 3990 && TMath::Abs(Added_H_PROBNNPID[ap]) == 321;
         bool added_pi_cuts = Added_H_ProbNNpi[ap] > 0.25 && Added_CharmH_M[ap] < 4040 && TMath::Abs(Added_H_PROBNNPID[ap]) == 221;
-        bool piSS_selection = !OS && added_H_cuts &&  added_pi_cuts;//basic_selection &&
+        bool piSS_selection = !OS && added_H_cuts && added_pi_cuts;//basic_selection &&
         bool piOS_selection =  OS && added_H_cuts && added_pi_cuts;
         bool KSS_selection  = !OS && added_H_cuts && added_K_cuts;
         bool KOS_selection  =  OS && added_H_cuts && added_K_cuts;
-        if(piSS_selection)multiple_cpi_SS.emplace_back(cH_cand{Added_CharmH_M[ap]-Xc_M+2695.2,Added_CharmH_IP_NEW[ap]});
-        if(piOS_selection)multiple_cpi_OS.emplace_back(cH_cand{Added_CharmH_M[ap]-Xc_M+2695.2,Added_CharmH_IP_NEW[ap]});
-        if(KSS_selection)multiple_cK_SS.emplace_back(cH_cand{Added_CharmH_M_kaon[ap]-Xc_M+2695.2,Added_CharmH_IP_NEW[ap]});
-        if(KOS_selection)multiple_cK_OS.emplace_back(cH_cand{Added_CharmH_M_kaon[ap]-Xc_M+2695.2,Added_CharmH_IP_NEW[ap]});
+        if(piSS_selection)multiple_cpi_SS.emplace_back(cH_mult_cand{Added_CharmH_M[ap]-Xc_M+2695.2,Added_CharmH_IP_NEW[ap]});
+        if(piOS_selection)multiple_cpi_OS.emplace_back(cH_mult_cand{Added_CharmH_M[ap]-Xc_M+2695.2,Added_CharmH_IP_NEW[ap]});
+        if(KSS_selection)multiple_cK_SS.emplace_back(cH_mult_cand{Added_CharmH_M_kaon[ap]-Xc_M+2695.2,Added_CharmH_IP_NEW[ap]});
+        if(KOS_selection)multiple_cK_OS.emplace_back(cH_mult_cand{Added_CharmH_M_kaon[ap]-Xc_M+2695.2,Added_CharmH_IP_NEW[ap]});
       }
       multiples.push_back(multiple_cpi_SS);
       multiples.push_back(multiple_cpi_OS);
@@ -588,23 +626,42 @@ void SimpleCuts(){
       for(unsigned int i = 0; i < multiples.size(); i++){
         if(multiples.at(i).size() > 1){
           if(myconfig->get_verbosity() > normal)cout << "we have a multiple candidate" << endl;
-          sort(multiples.at(i).begin(), multiples.at(i).end(), compareByip);
-          fill_profile(multiples.at(i),Omegac_IP);
+          sort(multiples.at(i).begin(), multiples.at(i).end(), compareByIP);
+          if(i == 0 && make_IP_profile_plots)fill_profile(multiples.at(i),Omegac_IP);
           for(unsigned int j = 0; j < multiples.at(i).size(); j++){
             if(myconfig->get_verbosity() > normal)cout << "IP of sorted candidate # " << j << ": " << multiples.at(i).at(j).ip << endl;
           }
         }
-        if(!multiples.at(i).empty())Omegac_hists.at(i)->Fill(multiples.at(i).at(0).mass);
-        if(multiples.at(i).size() > 1){
-          for(unsigned int j = 1; j < multiples.at(i).size(); j++){
-            Omegac_IPfails.at(i)->Fill(multiples.at(i).at(j).mass);
+        if(clean_vertex){
+          if(multiples.at(i).size() > 1){
+            int good_IP_particles = 1;
+            int ih1 = 0, ih2 = 0;
+            for(unsigned int j = 1; j < multiples.at(i).size(); j++){
+              //eliminate Xc*->Xc+nH (where n > 1)
+              //Assuming that if n candidates have similar IP, they come from the same vertex
+              if(multiples.at(i).at(1).ip/multiples.at(i).at(0).ip < 1.25){
+                good_IP_particles++;
+                ih1 = multiples.at(i).at(0).index; ih2 = multiples.at(i).at(1).index;
+                multiples.at(i).erase(multiples.at(i).begin());//it will always be the first element I hope ?!
+                if(purge_vertex)multiples.at(i).clear();
+              }
+            }
+          }
+          if(!multiples.at(i).empty())Omegac_hists.at(i)->Fill(multiples.at(i).at(0).mass);
+        }
+        else{
+          if(!multiples.at(i).empty())Omegac_hists.at(i)->Fill(multiples.at(i).at(0).mass);
+          if(multiples.at(i).size() > 1){
+            for(unsigned int j = 1; j < multiples.at(i).size(); j++){
+              Omegac_IPfails.at(i)->Fill(multiples.at(i).at(j).mass);
+            }
           }
         }
       }
     }
 
-    make_1D_Plot(Omegab_hist,myconfig);
-    make_1D_Plot(Omegac_IP,myconfig);
+    make_overlay_Plot(Omegab_SB_hist,Omegab_hist,myconfig);
+    if(make_IP_profile_plots)make_1D_Plot(Omegac_IP,myconfig);
     make_2D_Plot(Omegac_beta_hist,myconfig);
     make_2D_Plot(Omegac_beta_cut_hist,myconfig);
     make_2D_Plot(Omegac_2D_dump,myconfig);
@@ -629,21 +686,22 @@ void SimpleCuts(){
 
 template <class cH>
 void fill_profile(vector<cH> multiple_cH_candidate, TProfile *Xc_IP) {
+  int n_profilebins = Xc_IP->GetNbinsX();
+  double binwidth = Xc_IP->GetXaxis()->GetBinWidth(1);
   vector<int> multiplicity;
-    for (int i = 1; i < n_profilebins + 1; i++){
-      multiplicity.push_back(0);
-      for (int j = 0; j < multiple_cH_candidate.size(); j++){
+  for (int i = 1; i < n_profilebins + 1; i++){
+    multiplicity.push_back(0);
+    for (int j = 0; j < multiple_cH_candidate.size(); j++){
       if(i < n_profilebins){
-        if((float)i < multiple_cH_candidate.at(j).ip && multiple_cH_candidate.at(j).ip < (float)i)
-          multiplicity[i] += 1;
+        if(multiple_cH_candidate.at(j).ip < (float)(i*binwidth))
+          multiplicity[i-1] += 1;
       }
-      else{
-        if(multiple_cH_candidate.at(j).ip > (float)i)multiplicity[i] += 1;
-      }
+      else multiplicity[i-1] += 1;//get all
     }
   }
   for (int i = 1; i < n_profilebins + 1; i++){
-    Xc_IP->Fill((double)i,(double)multiplicity.at(i));
+    //cout << "multiplicity below " << i*binwidth << " mm: " << multiplicity.at(i-1) << endl;
+    Xc_IP->Fill(Xc_IP->GetXaxis()->GetBinCenter(i),(double)multiplicity.at(i-1));
   }
   return;
 }
@@ -660,19 +718,35 @@ void make_1D_Plot(T *hist, configuration *myconfig){
   //gPad->SetLogy();
   //hist->GetYaxis()->SetTitleOffset(0.8);
   hist->SetLineWidth(2);
-  hist->SetLineColor(kBlue+2);
+  if(static_cast<TString>(hist->GetName()).Contains("_IP")){
+    hist->SetLineColor(kBlack);
+    hist->SetMarkerColor(kBlack);
+  }
+  else hist->SetLineColor(kBlue+2);
   hist->GetXaxis()->SetLabelSize(0.05);
   hist->GetYaxis()->SetLabelSize(0.05);
   hist->GetXaxis()->SetTitleSize(0.05);
   hist->GetYaxis()->SetTitleSize(0.05);
   hist->GetYaxis()->SetRangeUser(0,1.2*hist->GetMaximum());
-  hist->Draw("hist");
+  if(static_cast<TString>(hist->GetName()).Contains("_IP"))hist->Draw("e1p");
+  else hist->Draw("hist");
 
   TPaveText *blank_box = new TPaveText(1.001-gPad->GetRightMargin(),gPad->GetBottomMargin(),1.0,gPad->GetBottomMargin()+0.05,"BRNDC");
   blank_box->SetBorderSize(0);blank_box->SetFillColor(kWhite);blank_box->SetTextAlign(12);blank_box->SetFillStyle(1001);
   blank_box->AddText(" ");
   blank_box->Draw();
   hist->Draw("axis same");
+
+  if(static_cast<TString>(hist->GetName()).Contains("_IP")){
+    TLegend *leg;
+    leg = new TLegend(0.5,0.12+gPad->GetBottomMargin(),0.97-gPad->GetRightMargin(),0.17+gPad->GetBottomMargin());
+    leg->SetBorderSize(0);leg->SetFillColor(kWhite);leg->SetFillStyle(1001);leg->SetTextAlign(12);leg->SetTextSize(0.05);leg->SetTextFont(42);
+    temp = "#Xi_{c}^{+}+n negative Tracks";
+    if(myconfig->get_particle().Contains("Xic0"))temp = "#Xi_{c}^{0} + n positive Tracks";
+    if(myconfig->get_particle().Contains("Omega"))temp = "#Omega_{c}^{0} + n positive Tracks^{+}";
+    leg->AddEntry(hist,temp,"lp");
+    leg->Draw();
+  }
 
   temp = myconfig->get_dumpdir()+"/Plots/";
   if(!gSystem->OpenDirectory(temp))gSystem->mkdir(temp);
@@ -793,23 +867,24 @@ void make_overlay_Plot(TH1D *SS_hist, TH1D *OS_hist, configuration *myconfig){
     TArrow OmegacStar_arrows;
     OmegacStar_arrows.SetAngle(40);
     OmegacStar_arrows.SetLineWidth(2);
-    OmegacStar_arrows.DrawArrow(peak1_mass,0.63*gPad->GetUymax(),peak1_mass,0.73*gPad->GetUymax(),0.03,"<|");
-    OmegacStar_arrows.DrawArrow(peak2_mass,0.63*gPad->GetUymax(),peak2_mass,0.73*gPad->GetUymax(),0.03,"<|");
-    OmegacStar_arrows.DrawArrow(peak3_mass,0.83*gPad->GetUymax(),peak3_mass,0.88*gPad->GetUymax(),0.03,"<|");
-    OmegacStar_arrows.DrawArrow(peak4_mass,0.83*gPad->GetUymax(),peak4_mass,0.88*gPad->GetUymax(),0.03,"<|");
-    OmegacStar_arrows.DrawArrow(peak5_mass,0.63*gPad->GetUymax(),peak5_mass,0.88*gPad->GetUymax(),0.03,"<|");
+    OmegacStar_arrows.DrawArrow(peak1_mass,0.85*gPad->GetUymax(),peak1_mass,0.88*gPad->GetUymax(),0.03,"<|");
+    OmegacStar_arrows.DrawArrow(peak2_mass,0.85*gPad->GetUymax(),peak2_mass,0.88*gPad->GetUymax(),0.03,"<|");
+    OmegacStar_arrows.DrawArrow(peak3_mass,0.85*gPad->GetUymax(),peak3_mass,0.88*gPad->GetUymax(),0.03,"<|");
+    OmegacStar_arrows.DrawArrow(peak4_mass,0.85*gPad->GetUymax(),peak4_mass,0.88*gPad->GetUymax(),0.03,"<|");
+    OmegacStar_arrows.DrawArrow(peak5_mass,0.85*gPad->GetUymax(),peak5_mass,0.88*gPad->GetUymax(),0.03,"<|");
 
-    TLatex OmegacStar_labels;OmegacStar_labels.SetTextAlign(22);OmegacStar_labels.SetTextFont(42);OmegacStar_labels.SetTextSize(0.05);
-    OmegacStar_labels.DrawLatex(peak1_mass,0.78*gPad->GetUymax(),"1");
-    OmegacStar_labels.DrawLatex(peak2_mass,0.78*gPad->GetUymax(),"2");
-    OmegacStar_labels.DrawLatex(peak3_mass,0.93*gPad->GetUymax(),"3");
-    OmegacStar_labels.DrawLatex(peak4_mass,0.93*gPad->GetUymax(),"4");
-    OmegacStar_labels.DrawLatex(peak5_mass,0.93*gPad->GetUymax(),"5");
+    TLatex OmegacStar_labels;OmegacStar_labels.SetTextAlign(21);OmegacStar_labels.SetTextFont(42);OmegacStar_labels.SetTextSize(0.05);
+    OmegacStar_labels.DrawLatex(peak1_mass,0.90*gPad->GetUymax(),"1");
+    OmegacStar_labels.DrawLatex(peak2_mass,0.90*gPad->GetUymax(),"2");
+    OmegacStar_labels.DrawLatex(peak3_mass,0.90*gPad->GetUymax(),"3");
+    OmegacStar_labels.DrawLatex(peak4_mass,0.90*gPad->GetUymax(),"4");
+    OmegacStar_labels.DrawLatex(peak5_mass,0.90*gPad->GetUymax(),"5");
 
   }
 
   TLegend *leg;
-  leg = new TLegend(0.6,0.72-gPad->GetTopMargin(),0.97-gPad->GetRightMargin(),0.97-gPad->GetTopMargin());
+  if(static_cast<TString>(SS_hist->GetName()).Contains("SB"))leg = new TLegend(gPad->GetLeftMargin()+0.06,0.82-gPad->GetTopMargin(),0.40-gPad->GetLeftMargin(),0.97-gPad->GetTopMargin());
+  else leg = new TLegend(0.6,0.82-gPad->GetTopMargin(),0.97-gPad->GetRightMargin(),0.97-gPad->GetTopMargin());
   leg->SetBorderSize(0);leg->SetFillColor(kWhite);leg->SetFillStyle(1001);leg->SetTextAlign(12);leg->SetTextSize(0.05);leg->SetTextFont(42);
   if(static_cast<TString>(OS_hist->GetName()).Contains("IPfail"))leg->SetHeader("Multiple candidates");
   if(static_cast<TString>(OS_hist->GetName()).Contains("pi")){
@@ -817,10 +892,15 @@ void make_overlay_Plot(TH1D *SS_hist, TH1D *OS_hist, configuration *myconfig){
     if(myconfig->get_particle().Contains("Xic0"))temp = "#Xi_{c}^{0}#pi^{#mp} + c.c.";
     if(myconfig->get_particle().Contains("Omega"))temp = "#Omega_{c}^{0}#pi^{#mp} + c.c.";
   }
-  else{
+  else if(static_cast<TString>(OS_hist->GetName()).Contains("K")){
     temp = "#Xi_{c}^{#pm}K^{#mp} + c.c.";
     if(myconfig->get_particle().Contains("Xic0"))temp = "#Xi_{c}^{0}K^{#mp} + c.c.";
     if(myconfig->get_particle().Contains("Omega"))temp = "#Omega_{c}^{0}K^{#mp} + c.c.";
+  }
+  else{
+    temp = "from #Xi_{c}^{#pm} signal";
+    if(myconfig->get_particle().Contains("Xic0"))temp = "from #Xi_{c}^{0} signal";
+    if(myconfig->get_particle().Contains("Omega"))temp = "from #Omega_{c}^{0} signal";
   }
   leg->AddEntry(OS_hist,temp,"l");
   if(static_cast<TString>(OS_hist->GetName()).Contains("pi")){
@@ -828,11 +908,12 @@ void make_overlay_Plot(TH1D *SS_hist, TH1D *OS_hist, configuration *myconfig){
     if(myconfig->get_particle().Contains("Xic0"))temp = "#Xi_{c}^{0}#pi^{#pm} + c.c.";
     if(myconfig->get_particle().Contains("Omega"))temp = "#Omega_{c}^{0}#pi^{#pm} + c.c.";
   }
-  else{
+  else if(static_cast<TString>(OS_hist->GetName()).Contains("K")){
     temp = "#Xi_{c}^{#pm}K^{#pm} + c.c.";
     if(myconfig->get_particle().Contains("Xic0"))temp = "#Xi_{c}^{0}K^{#pm} + c.c.";
     if(myconfig->get_particle().Contains("Omega"))temp = "#Omega_{c}^{0}K^{#pm} + c.c.";
   }
+  else temp = "from sidebands";
   leg->AddEntry(SS_hist,temp,"l");
   leg->Draw();
 
